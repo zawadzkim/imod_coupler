@@ -85,14 +85,17 @@ class Driver(ABC):
 def get_driver(
     config_dict: dict[str, Any], config_dir: Path, base_config: BaseConfig
 ) -> Driver:
-    from imod_coupler.drivers.metamod.config import MetaModConfig
-    from imod_coupler.drivers.metamod.metamod import MetaMod
-    from imod_coupler.drivers.ribametamod.config import RibaMetaModConfig
-    from imod_coupler.drivers.ribametamod.ribametamod import RibaMetaMod
-    from imod_coupler.drivers.ribamod.config import RibaModConfig
-    from imod_coupler.drivers.ribamod.ribamod import RibaMod
-    from imod_coupler.drivers.swapmod.config import SwapModConfig
-    from imod_coupler.drivers.swapmod.swapmod import SwapMod
+    try:
+        from imod_coupler.drivers.metamod.config import MetaModConfig
+        from imod_coupler.drivers.metamod.metamod import MetaMod
+        from imod_coupler.drivers.ribametamod.config import RibaMetaModConfig
+        from imod_coupler.drivers.ribametamod.ribametamod import RibaMetaMod
+        from imod_coupler.drivers.ribamod.config import RibaModConfig
+        from imod_coupler.drivers.ribamod.ribamod import RibaMod
+        from imod_coupler.drivers.swapmod.config import SwapModConfig
+        from imod_coupler.drivers.swapmod.swapmod import SwapMod
+    except ImportError:
+        pass
 
     if base_config.driver_type == "metamod":
         metamod_config = MetaModConfig(config_dir=config_dir, **config_dict["driver"])
