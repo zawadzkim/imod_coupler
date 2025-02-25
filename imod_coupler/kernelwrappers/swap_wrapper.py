@@ -18,7 +18,7 @@ class SwapWrapper(XmiWrapper):
 
     def get_head_ptr(self) -> NDArray[np.float64]:
         """
-        Gets heads array from metaswap
+        Gets heads array from SWAP
 
         Parameters
         ----------
@@ -26,14 +26,14 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_head: NDArray[np.float64]
-            array of the heads used by metaswap. Array as pointer to the MetaSWAP intenal array
+         swap_head: NDArray[np.float64]
+            array of the heads used by SWAP. Array as pointer to the SWAP intenal array
         """
-        return self.get_value_ptr("dhgwmod")
+        return self.get_value_ptr("MODFLOW_groundwater_level")
 
     def get_volume_ptr(self) -> NDArray[np.float64]:
         """
-        Gets volume array from metaswap
+        Gets volume array from SWAP
 
         Parameters
         ----------
@@ -41,10 +41,10 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_volume: NDArray[np.float64]
-            array of volume used by metaswap. Array as pointer to the MetaSWAP intenal array
+         swap_volume: NDArray[np.float64]
+            array of volume used by SWAP. Array as pointer to the SWAP intenal array
         """
-        return self.get_value_ptr("dvsim")
+        return self.get_value_ptr("SWAP_groundwater_recharge")
 
     def get_storage_ptr(self) -> NDArray[np.float64]:
         """
@@ -56,7 +56,7 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_storage: NDArray[np.float64]
-            array of storage used by metaswap. Array as pointer to the MetaSWAP intenal array
+         swap_storage: NDArray[np.float64]
+            array of storage used by SWAP. Array as pointer to the SWAP intenal array
         """
-        return self.get_value_ptr("dsc1sim")
+        return self.get_value_ptr("SWAP_specific_yield")

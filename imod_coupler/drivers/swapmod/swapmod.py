@@ -5,12 +5,12 @@ description:
 """
 from __future__ import annotations
 
-from typing import Any#, Dict
+from typing import Any, Dict
 
-#import numpy as np
+import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
-#from scipy.sparse import csr_matrix, dia_matrix
+from scipy.sparse import csr_matrix, dia_matrix
 from xmipy import XmiWrapper
 
 from imod_coupler.config import BaseConfig
@@ -19,37 +19,54 @@ from imod_coupler.drivers.swapmod.config import Coupling, SwapModConfig
 from imod_coupler.kernelwrappers.mf6_wrapper import Mf6Wrapper
 from imod_coupler.kernelwrappers.swap_wrapper import SwapWrapper
 from imod_coupler.logging.exchange_collector import ExchangeCollector
-#from imod_coupler.utils import create_mapping
+from imod_coupler.utils import create_mapping
 
 
 class SwapMod(Driver):
-    """The driver coupling SWAP and MODFLOW 6"""
+    # The driver coupling SWAP and MODFLOW6
 
-    base_config: BaseConfig  # the parsed information from the configuration file
-    swapmod_config: SwapModConfig  # the parsed information from the configuration file specific to SwapMod
-    coupling: Coupling  # the coupling information
+    # the parsed information from the configuration file
+    base_config: BaseConfig
+    # the parsed information from the configuration file specific to SwapMod
+    swapmod_config: SwapModConfig
+    coupling: Coupling                 # the coupling information
 
-    timing: bool  # true, when timing is enabled
-    mf6: XmiWrapper  # the MODFLOW 6 XMI kernel
-    swap: XmiWrapper  # the SWAP XMI kernel
+    timing: bool                       # true, when timing is enabled
+    mf6: XmiWrapper                    # the MODFLOW 6 XMI kernel
+    swap: XmiWrapper                   # the SWAP XMI kernel
 
-    max_iter: NDArray[Any]  # max. nr outer iterations in MODFLOW kernel
-    delt: float  # time step from MODFLOW 6 (leading)
+    # max. nr outer iterations in MODFLOW kernel
+    max_iter: NDArray[Any]
+    delt: float                        # time step from MODFLOW 6 (leading)
 
-    mf6_head: NDArray[Any]  # the hydraulic head array in the coupled model
-    mf6_recharge: NDArray[Any]  # the coupled recharge array from the RCH package
-    mf6_storage: NDArray[Any]  # the specific storage array (ss)
-    mf6_has_sc1: bool  # when true, specific storage in mf6 is given as a storage coefficient (sc1)
-    mf6_area: NDArray[Any]  # cell area (size:nodes)
-    mf6_top: NDArray[Any]  # top of cell (size:nodes)
-    mf6_bot: NDArray[Any]  # bottom of cell (size:nodes)
+    # the hydraulic head array in the coupled model
+    mf6_head: NDArray[Any]
+    # the coupled recharge array from the RCH package
+    mf6_recharge: NDArray[Any]
+    mf6_storage: NDArray[Any]          # the specific storage array (ss)
+    # when true, specific storage in mf6 is given as a storage coefficient (sc1)
+    mf6_has_sc1: bool
+    mf6_area: NDArray[Any]             # cell area (size:nodes)
+    mf6_top: NDArray[Any]              # top of cell (size:nodes)
+    mf6_bot: NDArray[Any]              # bottom of cell (size:nodes)
 
-    swap_head: NDArray[Any]  # internal SWAP groundwater head
-    swap_volume: NDArray[Any]  # unsaturated zone flux (as a volume!)
-    swap_storage: NDArray[Any]  # SWAP storage coefficients (MODFLOW's sc1)
+    swap_head: NDArray[Any]            # internal SWAP groundwater head
+    swap_volume: NDArray[Any]          # unsaturated zone flux (as a volume!)
+    # SWAP storage coefficients (MODFLOW's sc1)
+    swap_storage: NDArray[Any]
+
+    # 2025-02-05: in compliance with metamod.py
+    # dictionary with mapping tables for mod=>swap coupling
+    map_mod2swap: Dict[str, csr_matrix] = {}
+    # dictionary with mapping tables for swap=>mod coupling
+    map_swap2mod: Dict[str, csr_matrix] = {}
+    # dict. with mask arrays for mod=>swap coupling
+    mask_mod2swap: Dict[str, NDArray[Any]] = {}
+    # dict. with mask arrays for swap=>mod coupling
+    mask_swap2mod: Dict[str, NDArray[Any]] = {}
 
     def __init__(self, base_config: BaseConfig, swapmod_config: SwapModConfig):
-        """Constructs the `SwapMod` object"""
+        # Constructs the `SwapMod` object
         self.base_config = base_config
         self.swapmod_config = swapmod_config
         self.coupling = swapmod_config.coupling[
@@ -87,8 +104,7 @@ class SwapMod(Driver):
         logger.info(f"SWAP version: {self.swap.get_version()}")
 
     def couple(self) -> None:
-        """Couple Modflow and SWAP"""
-
+        # Couple Modflow and SWAP
         self.mf6_head = self.mf6.get_head(self.coupling.mf6_model)
         self.mf6_recharge = self.mf6.get_recharge(
             self.coupling.mf6_model, self.coupling.mf6_swap_recharge_pkg
@@ -104,6 +120,112 @@ class SwapMod(Driver):
         self.swap_volume = self.swap.get_volume_ptr()
         self.swap_storage = self.swap.get_storage_ptr()
 
+        # 2025-02-05: in compliance with metamod.py
+        # create a lookup, with the svat tuples (id, lay) as keys and the
+        # swap internal indexes as values
+        svat_lookup = {}
+        svat_data: NDArray[np.int32] = np.loadtxt(
+            self.coupling.swap_mod2svat_file, dtype=np.int32, ndmin=2
+        )
+        svat_id = svat_data[:, 1]
+        svat_lay = svat_data[:, 2]
+        for vi in range(svat_id.size):
+            svat_lookup[(svat_id[vi], svat_lay[vi])] = vi
+
+        # create mappings
+        table_node2svat: NDArray[np.int32] = np.loadtxt(
+            self.coupling.mf6_swap_node_map, dtype=np.int32, ndmin=2
+        )
+        node_idx = table_node2svat[:, 0] - 1
+        swap_idx = [
+            svat_lookup[table_node2svat[ii, 1], table_node2svat[ii, 2]]
+            for ii in range(len(table_node2svat))
+        ]
+
+        self.map_swap2mod["storage"], self.mask_swap2mod["storage"] = create_mapping(
+            swap_idx,
+            node_idx,
+            self.swap_storage.size,
+            self.mf6_storage.size,
+            "sum",
+        )
+
+        # MetaSWAP/SSS gives SC1*area, MODFLOW by default needs SS, convert here.
+        # When MODFLOW is configured to use SC1 explicitly via the
+        # STORAGECOEFFICIENT option in the STO package, no conversion is needed
+        # i.,e., conversion_terms = 1
+        # To do: what if we have a 1:n coupling?
+        if self.mf6_has_sc1:
+            # conversion_terms = 1.0 * self.mf6_area / self.mf6_area
+            conversion_terms = np.ones_like(self.mf6_area)
+
+        else:
+            conversion_terms = 1.0 / \
+                (self.mf6_area * (self.mf6_top - self.mf6_bot))
+
+        conversion_matrix = dia_matrix(
+            (conversion_terms, [0]),
+            shape=(self.mf6_area.size, self.mf6_area.size),
+            dtype=self.mf6_area.dtype,
+        )
+        self.map_swap2mod["storage"] = conversion_matrix * \
+            self.map_swap2mod["storage"]
+
+        self.map_mod2swap["head"], self.mask_mod2swap["head"] = create_mapping(
+            node_idx,
+            swap_idx,
+            self.mf6_head.size,
+            self.swap_head.size,
+            "avg",
+        )
+
+        table_rch2svat: NDArray[np.int32] = np.loadtxt(
+            self.coupling.mf6_swap_recharge_map, dtype=np.int32, ndmin=2
+        )
+        rch_idx = table_rch2svat[:, 0] - 1
+        swap_idx = [
+            svat_lookup[table_rch2svat[ii, 1], table_rch2svat[ii, 2]]
+            for ii in range(len(table_rch2svat))
+        ]
+
+        self.map_swap2mod["recharge"], self.mask_swap2mod["recharge"] = create_mapping(
+            swap_idx,
+            rch_idx,
+            self.swap_volume.size,
+            self.mf6_recharge.size,
+            "sum",
+        )
+
+        if self.coupling.enable_sprinkling:
+            assert isinstance(self.coupling.mf6_swap_well_pkg, str)
+            assert isinstance(self.coupling.mf6_swap_sprinkling_map, Path)
+
+            # in this case we have a sprinkling demand from (Meta)SWAP
+            mf6_sprinkling_tag = self.mf6.get_var_address(
+                "BOUND", self.coupling.mf6_model, self.coupling.mf6_swap_well_pkg
+            )
+            self.mf6_sprinkling_wells = self.mf6.get_value_ptr(mf6_sprinkling_tag)[
+                :, 0]
+            table_well2svat: NDArray[np.int32] = np.loadtxt(
+                self.coupling.mf6_swap_sprinkling_map, dtype=np.int32, ndmin=2
+            )
+            well_idx = table_well2svat[:, 0] - 1
+            swap_idx = [
+                svat_lookup[table_well2svat[ii, 1], table_well2svat[ii, 2]]
+                for ii in range(len(table_well2svat))
+            ]
+
+            (
+                self.map_swap2mod["sprinkling"],
+                self.mask_swap2mod["sprinkling"],
+            ) = create_mapping(
+                swap_idx,
+                well_idx,
+                self.swap_volume.size,
+                self.mf6_sprinkling_wells.size,
+                "sum",
+            )
+
     def update(self) -> None:
         # heads to SWAP
         self.exchange_mod2swap()
@@ -111,12 +233,9 @@ class SwapMod(Driver):
         # we cannot set the timestep (yet) in Modflow
         # -> set to the (dummy) value 0.0 for now
         self.mf6.prepare_time_step(0.0)
-
         self.delt = self.mf6.get_time_step()
         self.swap.prepare_time_step(self.delt)
-        self.swap.prepare_solve(0)
-        self.swap.solve(0)
-        self.swap.finalize_solve(0)
+        self.swap.do_time_step()
         self.exchange_swap2mod()
 
         # convergence loop
@@ -127,7 +246,7 @@ class SwapMod(Driver):
                 logger.debug(f"MF6-SWAP converged in {kiter} iterations")
                 break
         self.mf6.finalize_solve(1)
-        
+
         self.mf6.finalize_time_step()
         self.swap.finalize_time_step()
 
@@ -143,29 +262,49 @@ class SwapMod(Driver):
         return self.mf6.get_end_time()
 
     def exchange_swap2mod(self) -> None:
-        """Exchange SWAP to Modflow"""
-        self.mf6_storage[:] = self.swap_storage[:]
+        # Exchange SWAP to Modflow: both in m/m
+        self.mf6_storage[:] = (
+            self.mask_swap2mod["storage"][:] * self.mf6_storage[:]
+            + self.map_swap2mod["storage"].dot(self.swap_storage)[:]
+        )
+        self.exchange_logger.log_exchange(
+            "mf6_storage", self.mf6_storage, self.get_current_time()
+        )
+        self.exchange_logger.log_exchange(
+            "swap_storage", self.swap_storage, self.get_current_time()
+        )
 
-        # Divide recharge and extraction by delta time
-        tled = 1 / self.delt
-        self.mf6_recharge[:] = tled * self.swap_volume[:]
+        # Divide recharge and extraction by delta time: tled = 1 / self.delt
+        # MODFLOW expects recharge in [m/d]
+        # SWAP supplies cm3/cm2/d = cm/d
+        self.mf6_recharge[:] = (
+            self.mask_swap2mod["recharge"][:] * self.mf6_recharge[:]
+            + 0.01 * self.map_swap2mod["recharge"].dot(self.swap_volume)[:]
+        )
 
     def exchange_mod2swap(self) -> None:
-        """Exchange Modflow to SWAP"""
-        self.swap_head[:] = self.mf6_head[:]
+        # Exchange Modflow to SWAP: convert m + NAP to m - mv and then to cm - mv
+        self.swap_head[:] = (
+            self.mask_mod2swap["head"][:] * self.swap_head[:]
+            + 100.0 * (self.map_mod2swap["head"].dot(self.mf6_head)
+                       [:] - self.map_mod2swap["head"].dot(self.mf6_top)[:])
+        )
 
     def do_iter(self, sol_id: int) -> bool:
-        """Execute a single iteration"""
-        #self.swap.prepare_solve(0)
-        #self.swap.solve(0)
-        #self.exchange_swap2mod()
-        has_converged= self.mf6.solve(sol_id)
-        #self.exchange_mod2swap()
-        #self.swap.finalize_solve(0)
+        # Execute a single iteration
+        has_converged = self.mf6.solve(sol_id)
+        self.exchange_mod2swap()
+        self.swap.do_time_step()
+        self.exchange_swap2mod()
         return has_converged
 
     def report_timing_totals(self) -> None:
         total_mf6 = self.mf6.report_timing_totals()
         total_swap = self.swap.report_timing_totals()
         total = total_mf6 + total_swap
-        logger.info(f"Total elapsed time in numerical kernels: {total:0.4f} seconds")
+        logger.info(
+            f"Total elapsed time in kernel MODFLOW6  : {total_mf6:0.6f} seconds")
+        logger.info(
+            f"Total elapsed time in kernel SWAP      : {total_swap:0.6f} seconds")
+        logger.info(
+            f"Total elapsed time in numerical kernels: {total:0.6f} seconds")
