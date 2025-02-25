@@ -16,7 +16,7 @@ class SwapWrapper(XmiWrapper):
     ):
         super().__init__(lib_path, lib_dependency, working_directory, timing)
 
-    def get_head_ptr(self) -> NDArray[np.float_]:
+    def get_head_ptr(self) -> NDArray[np.float64]:
         """
         Gets heads array from metaswap
 
@@ -26,12 +26,12 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_head: NDArray[np.float_]
+         msw_head: NDArray[np.float64]
             array of the heads used by metaswap. Array as pointer to the MetaSWAP intenal array
         """
         return self.get_value_ptr("dhgwmod")
 
-    def get_volume_ptr(self) -> NDArray[np.float_]:
+    def get_volume_ptr(self) -> NDArray[np.float64]:
         """
         Gets volume array from metaswap
 
@@ -41,12 +41,12 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_volume: NDArray[np.float_]
+         msw_volume: NDArray[np.float64]
             array of volume used by metaswap. Array as pointer to the MetaSWAP intenal array
         """
         return self.get_value_ptr("dvsim")
 
-    def get_storage_ptr(self) -> NDArray[np.float_]:
+    def get_storage_ptr(self) -> NDArray[np.float64]:
         """
         Gets storage array from metaswap
 
@@ -56,7 +56,7 @@ class SwapWrapper(XmiWrapper):
 
         Returns
         -------
-         msw_storage: NDArray[np.float_]
+         msw_storage: NDArray[np.float64]
             array of storage used by metaswap. Array as pointer to the MetaSWAP intenal array
         """
         return self.get_value_ptr("dsc1sim")
