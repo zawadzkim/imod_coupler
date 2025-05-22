@@ -7,7 +7,7 @@ from imod_coupler import __version__
 
 def parse_args(args: Sequence[str] | None = None) -> Any:
     parser = argparse.ArgumentParser()
-
+    print("Parsing arguments...")
     parser.add_argument(
         "config_path",
         action="store",

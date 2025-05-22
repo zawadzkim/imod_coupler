@@ -11,24 +11,25 @@ from loguru import logger
 from imod_coupler.config import BaseConfig
 
 
-def resolve_path(libname: str) -> str:
-    match sys.platform.lower():
-        case "win32":
-            env_var = "PATH"
-        case "linux" | "linux2" | "darwin":
-            env_var = "LD_LIBRARY_PATH"
-        case _:
-            return libname
+# def resolve_path(libname: str) -> str:
+#     print(f"Resolving path for {libname}")
+#     match sys.platform.lower():
+#         case "win32":
+#             env_var = "PATH"
+#         case "linux" | "linux2" | "darwin":
+#             env_var = "LD_LIBRARY_PATH"
+#         case _:
+#             return libname
 
-    if os.path.isfile(libname):
-        return libname
-    if env_var in os.environ:
-        pathdef: str = os.environ[env_var]
-        for dir in pathdef.split(os.pathsep):
-            full_path = Path(dir) / libname
-            if full_path.is_file():
-                return str(full_path)
-    return libname  # if resolution failed, give it back to the call site
+#     if os.path.isfile(libname):
+#         return libname
+#     if env_var in os.environ:
+#         pathdef: str = os.environ[env_var]
+#         for dir in pathdef.split(os.pathsep):
+#             full_path = Path(dir) / libname
+#             if full_path.is_file():
+#                 return str(full_path)
+#     return libname  # if resolution failed, give it back to the call site
 
 
 class Driver(ABC):

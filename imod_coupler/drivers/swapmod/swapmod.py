@@ -282,12 +282,11 @@ class SwapMod(Driver):
             + 0.01 * self.map_swap2mod["recharge"].dot(self.swap_volume)[:]
         )
 
+    # This is Marius' version
     def exchange_mod2swap(self) -> None:
         # Exchange Modflow to SWAP: convert m + NAP to m - mv and then to cm - mv
         self.swap_head[:] = (
-            self.mask_mod2swap["head"][:] * self.swap_head[:]
-            + 100.0 * (self.map_mod2swap["head"].dot(self.mf6_head)
-                       [:] - self.map_mod2swap["head"].dot(self.mf6_top)[:])
+            self.mask_mod2swap["head"][:] * self.swap_head[:] + self.map_mod2swap["head"].dot(self.mf6_head)[:]
         )
 
     def do_iter(self, sol_id: int) -> bool:
