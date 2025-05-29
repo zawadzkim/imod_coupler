@@ -105,7 +105,7 @@ def get_driver(
         from imod_coupler.drivers.swapmod.swapmod import SwapMod
 
         swapmod_config = SwapModConfig(
-            config_dir=config_dir, **config_dict["driver"])
+            config_file=config_file, config_dir=config_dir, **config_dict["driver"])
         return SwapMod(base_config, swapmod_config)
     else:
         raise ValueError(
