@@ -84,7 +84,7 @@ class Driver(ABC):
 
 
 def get_driver(
-    config_dict: dict[str, Any], config_dir: Path, base_config: BaseConfig
+    config_dict: dict[str, Any], config_dir: Path, base_config: BaseConfig, config_file: Path
 ) -> Driver:
     if base_config.driver_type == "metamod":
         from imod_coupler.drivers.metamod.config import MetaModConfig

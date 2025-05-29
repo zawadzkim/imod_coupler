@@ -79,6 +79,7 @@ class Coupling(BaseModel):
 class SwapModConfig(BaseModel):
     kernels: Kernels
     coupling: List[Coupling]
+    config_file: Path
 
     def __init__(self, config_dir: Path, **data: Any) -> None:
         """Model for the MetaMod config validated by pydantic

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from pathlib import Path
+
 import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
@@ -89,7 +91,7 @@ class SwapMod(Driver):
         # Print output to stdout
         self.mf6.set_int("ISTDOUTTOFILE", 0)
         self.mf6.initialize()
-        self.swap.initialize()
+        self.swap.initialize(config_file=str(self.swapmod_config.config_file.resolve()))
         self.log_version()
         if self.coupling.output_config_file is not None:
             self.exchange_logger = ExchangeCollector.from_file(
